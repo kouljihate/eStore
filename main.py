@@ -2,7 +2,7 @@ import flet as ft
 import os
 from app.database import init_db
 from app.translations import get_translation as t
-from app.theme import ARABIC_FONT
+from app.theme import AppTheme, ARABIC_FONT
 from app.screens.login_screen import LoginScreen
 from app.screens.dashboard_screen import DashboardScreen
 from app.screens.stock_screen import StockScreen
@@ -32,11 +32,17 @@ def main(page: ft.Page):
     if not page.session.store.get("currency"):
         page.session.store.set("currency", "MAD")
 
+    def _apply_theme():
+        lang = page.session.store.get("lang") or "ar"
+        mode = page.session.store.get("theme_mode") or "dark"
+        page.theme = AppTheme.get_theme(mode, lang)
+
     def navigate_to(screen_index):
         nav_bar.selected_index = screen_index
         _update_screen(screen_index)
 
     def _update_screen(index):
+        _apply_theme()
         lang = page.session.store.get("lang") or "ar"
         page.views.clear()
         user_id = page.session.store.get("user_id")
@@ -76,15 +82,20 @@ def main(page: ft.Page):
         page.session.store.set("user_id", None)
         page.session.store.set("user_name", None)
         page.views.clear()
+        _apply_theme()
         page.views.append(ft.View(route="/", controls=[LoginScreen(page, on_login_success=lambda: navigate_to(0))]))
         page.update()
 
     def _on_theme_change(mode):
         page.theme_mode = mode
+        page.session.store.set("theme_mode", mode)
+        _apply_theme()
         _update_screen(nav_bar.selected_index)
 
     def _on_lang_change(lang):
         page.rtl = lang == "ar"
+        page.session.store.set("lang", lang)
+        _apply_theme()
         _update_screen(nav_bar.selected_index)
 
     def _nav_change(e):
@@ -102,6 +113,7 @@ def main(page: ft.Page):
         on_change=_nav_change,
     )
 
+    _apply_theme()
     _update_screen(0)
 
 

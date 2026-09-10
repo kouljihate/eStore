@@ -2,7 +2,6 @@ import flet as ft
 from app.database import user_count, create_user, authenticate_user
 from app.translations import get_translation as t
 from app.version import VERSION
-from app.theme import get_font_family
 
 
 class LoginScreen(ft.Container):
@@ -16,7 +15,6 @@ class LoginScreen(ft.Container):
 
     def _build(self):
         lang = self._page.session.store.get("lang") or "ar"
-        font = get_font_family(lang)
         is_first_run = user_count() == 0
         self.show_login = not is_first_run
 
@@ -42,19 +40,17 @@ class LoginScreen(ft.Container):
             visible=is_first_run,
             text_align=ft.TextAlign.RIGHT,
         )
-        self.error_text = ft.Text("", color="red", size=13, text_align=ft.TextAlign.CENTER, font_family=font)
+        self.error_text = ft.Text("", color="red", size=13, text_align=ft.TextAlign.CENTER)
         self.title_text = ft.Text(
             t(lang, "first_run_title" if is_first_run else "login"),
             size=28,
             weight=ft.FontWeight.BOLD,
-            font_family=font,
         )
         self.subtitle_text = ft.Text(
             t(lang, "first_run_msg" if is_first_run else "login_subtitle"),
             size=14,
             opacity=0.7,
             text_align=ft.TextAlign.CENTER,
-            font_family=font,
         )
         self.action_btn = ft.FilledButton(
             t(lang, "register_btn" if is_first_run else "login_btn"),
@@ -75,9 +71,6 @@ class LoginScreen(ft.Container):
                 ft.Segment("fr", label=ft.Text("FR", size=10)),
             ],
             on_change=self._on_lang_change,
-            style=ft.ButtonStyle(
-                padding=ft.padding.symmetric(horizontal=8, vertical=4),
-            ),
         )
 
         self.content = ft.Stack(
@@ -106,7 +99,7 @@ class LoginScreen(ft.Container):
                     left=5,
                     bottom=5,
                 ),
-                ft.Text(f"v{VERSION}", size=11, opacity=0.5, right=10, bottom=5, font_family=font),
+                ft.Text(f"v{VERSION}", size=11, opacity=0.5, right=10, bottom=5),
             ],
             expand=True,
         )

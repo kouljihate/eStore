@@ -26,23 +26,16 @@ class AppTheme:
     LOW_STOCK = "#FF6F00"
 
     @staticmethod
-    def _font(lang: str = "ar"):
-        if lang == "ar":
-            return ft.TextStyle(font_family=ARABIC_FONT)
-        return None
-
-    @staticmethod
     def get_theme(theme_mode: str, lang: str = "ar") -> ft.Theme:
         is_dark = theme_mode == "dark"
-        font = AppTheme._font(lang)
         text_color = AppTheme.TEXT_DARK if is_dark else AppTheme.TEXT_LIGHT
+        font = ARABIC_FONT if lang == "ar" else None
 
-        def ts(**kwargs):
-            if font:
-                return ft.TextStyle(color=text_color, font_family=font.font_family)
-            return ft.TextStyle(color=text_color)
+        def ts():
+            return ft.TextStyle(color=text_color, font_family=font)
 
         return ft.Theme(
+            font_family=font,
             color_scheme_seed=AppTheme.PRIMARY,
             brightness=ft.Brightness.DARK if is_dark else ft.Brightness.LIGHT,
             primary_color=AppTheme.PRIMARY,
@@ -56,9 +49,15 @@ class AppTheme:
                 body_large=ts(),
                 body_medium=ts(),
                 body_small=ts(),
+                display_large=ts(),
+                display_medium=ts(),
+                display_small=ts(),
                 headline_large=ts(),
                 headline_medium=ts(),
                 headline_small=ts(),
+                label_large=ts(),
+                label_medium=ts(),
+                label_small=ts(),
                 title_large=ts(),
                 title_medium=ts(),
                 title_small=ts(),
