@@ -66,9 +66,9 @@ class LoginScreen(ft.Container):
         self.lang_bar = ft.SegmentedButton(
             selected=[lang],
             segments=[
-                ft.Segment("en", label=ft.Text("EN", size=10)),
-                ft.Segment("ar", label=ft.Text("AR", size=10)),
-                ft.Segment("fr", label=ft.Text("FR", size=10)),
+                ft.Segment("en", label=ft.Text("EN", size=6)),
+                ft.Segment("ar", label=ft.Text("AR", size=6)),
+                ft.Segment("fr", label=ft.Text("FR", size=6)),
             ],
             on_change=self._on_lang_change,
         )
