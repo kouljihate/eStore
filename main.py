@@ -1,6 +1,8 @@
 import flet as ft
+import os
 from app.database import init_db
 from app.translations import get_translation as t
+from app.theme import ARABIC_FONT
 from app.screens.login_screen import LoginScreen
 from app.screens.dashboard_screen import DashboardScreen
 from app.screens.stock_screen import StockScreen
@@ -11,6 +13,9 @@ from app.screens.credit_screen import CreditScreen
 
 def main(page: ft.Page):
     init_db()
+
+    font_path = os.path.join(os.path.dirname(__file__), "assets", "fonts", "VIP_RAWY_THIN.ttf")
+    page.fonts = {ARABIC_FONT: font_path}
 
     page.title = "eDrogery"
     page.theme_mode = page.session.store.get("theme_mode") or "dark"

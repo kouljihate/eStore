@@ -1,7 +1,7 @@
 import flet as ft
 from app.database import get_dashboard_data, get_stock_movements, get_transactions
 from app.translations import get_translation as t
-from app.theme import AppTheme
+from app.theme import AppTheme, get_font_family
 from app.currency import get_currency_symbol
 
 

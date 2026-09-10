@@ -2,6 +2,7 @@ import flet as ft
 from app.database import user_count, create_user, authenticate_user
 from app.translations import get_translation as t
 from app.version import VERSION
+from app.theme import get_font_family
 
 
 class LoginScreen(ft.Container):
@@ -15,6 +16,7 @@ class LoginScreen(ft.Container):
 
     def _build(self):
         lang = self._page.session.store.get("lang") or "ar"
+        font = get_font_family(lang)
         is_first_run = user_count() == 0
         self.show_login = not is_first_run
 
@@ -40,17 +42,19 @@ class LoginScreen(ft.Container):
             visible=is_first_run,
             text_align=ft.TextAlign.RIGHT,
         )
-        self.error_text = ft.Text("", color="red", size=13, text_align=ft.TextAlign.CENTER)
+        self.error_text = ft.Text("", color="red", size=13, text_align=ft.TextAlign.CENTER, font_family=font)
         self.title_text = ft.Text(
             t(lang, "first_run_title" if is_first_run else "login"),
             size=28,
             weight=ft.FontWeight.BOLD,
+            font_family=font,
         )
         self.subtitle_text = ft.Text(
             t(lang, "first_run_msg" if is_first_run else "login_subtitle"),
             size=14,
             opacity=0.7,
             text_align=ft.TextAlign.CENTER,
+            font_family=font,
         )
         self.action_btn = ft.FilledButton(
             t(lang, "register_btn" if is_first_run else "login_btn"),
@@ -61,6 +65,16 @@ class LoginScreen(ft.Container):
         self.toggle_text = ft.TextButton(
             t(lang, "has_account" if is_first_run else "no_account"),
             on_click=self._toggle_mode,
+        )
+
+        self.lang_bar = ft.SegmentedButton(
+            selected=[lang],
+            segments=[
+                ft.Segment("en", label=ft.Text("EN", size=12)),
+                ft.Segment("ar", label=ft.Text("AR", size=12)),
+                ft.Segment("fr", label=ft.Text("FR", size=12)),
+            ],
+            on_change=self._on_lang_change,
         )
 
         self.content = ft.Stack(
@@ -84,10 +98,27 @@ class LoginScreen(ft.Container):
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     scroll=ft.ScrollMode.AUTO,
                 ),
-                ft.Text(f"v{VERSION}", size=11, opacity=0.5, right=10, bottom=5),
+                ft.Container(
+                    content=self.lang_bar,
+                    left=0,
+                    bottom=0,
+                ),
+                ft.Text(f"v{VERSION}", size=11, opacity=0.5, right=10, bottom=5, font_family=font),
             ],
             expand=True,
         )
+
+    def _on_lang_change(self, e):
+        selected = e.data
+        lang = "ar"
+        if "en" in selected:
+            lang = "en"
+        elif "fr" in selected:
+            lang = "fr"
+        self._page.session.store.set("lang", lang)
+        self._page.rtl = lang == "ar"
+        self._build()
+        self.update()
 
     def _handle_action(self, e):
         lang = self._page.session.store.get("lang") or "ar"
