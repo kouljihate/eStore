@@ -35,9 +35,7 @@ class AppTheme:
             return ft.TextStyle(color=text_color, font_family=font)
 
         return ft.Theme(
-            font_family=font,
             color_scheme_seed=AppTheme.PRIMARY,
-            brightness=ft.Brightness.DARK if is_dark else ft.Brightness.LIGHT,
             primary_color=AppTheme.PRIMARY,
             primary_color_dark=AppTheme.PRIMARY_DARK,
             primary_color_light=AppTheme.PRIMARY_LIGHT,
