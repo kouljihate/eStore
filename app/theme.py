@@ -29,20 +29,25 @@ class AppTheme:
     def get_theme(theme_mode: str, lang: str = "ar") -> ft.Theme:
         is_dark = theme_mode == "dark"
         text_color = AppTheme.TEXT_DARK if is_dark else AppTheme.TEXT_LIGHT
+        bg = AppTheme.BG_DARK if is_dark else AppTheme.BG_LIGHT
+        surface = AppTheme.SURFACE_DARK if is_dark else AppTheme.SURFACE_LIGHT
         font = ARABIC_FONT if lang == "ar" else None
 
         def ts():
             return ft.TextStyle(color=text_color, font_family=font)
 
         return ft.Theme(
+            font_family=font,
             color_scheme_seed=AppTheme.PRIMARY,
-            primary_color=AppTheme.PRIMARY,
-            primary_color_dark=AppTheme.PRIMARY_DARK,
-            primary_color_light=AppTheme.PRIMARY_LIGHT,
-            secondary_color=AppTheme.ACCENT,
-            bgcolor=AppTheme.BG_DARK if is_dark else AppTheme.BG_LIGHT,
-            surface_tint_color=AppTheme.SURFACE_DARK if is_dark else AppTheme.SURFACE_LIGHT,
-            error_color=AppTheme.ERROR,
+            color_scheme=ft.ColorScheme(
+                primary=AppTheme.PRIMARY,
+                secondary=AppTheme.ACCENT,
+                error=AppTheme.ERROR,
+                surface=surface,
+            ),
+            canvas_color=bg,
+            scaffold_bgcolor=bg,
+            card_bgcolor=surface,
             text_theme=ft.TextTheme(
                 body_large=ts(),
                 body_medium=ts(),
