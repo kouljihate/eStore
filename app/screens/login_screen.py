@@ -70,11 +70,14 @@ class LoginScreen(ft.Container):
         self.lang_bar = ft.SegmentedButton(
             selected=[lang],
             segments=[
-                ft.Segment("en", label=ft.Text("EN", size=12)),
-                ft.Segment("ar", label=ft.Text("AR", size=12)),
-                ft.Segment("fr", label=ft.Text("FR", size=12)),
+                ft.Segment("en", label=ft.Text("EN", size=10)),
+                ft.Segment("ar", label=ft.Text("AR", size=10)),
+                ft.Segment("fr", label=ft.Text("FR", size=10)),
             ],
             on_change=self._on_lang_change,
+            style=ft.ButtonStyle(
+                padding=ft.padding.symmetric(horizontal=8, vertical=4),
+            ),
         )
 
         self.content = ft.Stack(
@@ -100,8 +103,8 @@ class LoginScreen(ft.Container):
                 ),
                 ft.Container(
                     content=self.lang_bar,
-                    left=0,
-                    bottom=0,
+                    left=5,
+                    bottom=5,
                 ),
                 ft.Text(f"v{VERSION}", size=11, opacity=0.5, right=10, bottom=5, font_family=font),
             ],
