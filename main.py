@@ -14,7 +14,7 @@ def main(page: ft.Page):
 
     page.title = "eDrogery"
     page.theme_mode = page.session.store.get("theme_mode") or "dark"
-    page.rtl = True
+    page.rtl = (page.session.store.get("lang") or "ar") == "ar"
     page.window.width = 360
     page.window.height = 780
     page.window.resizable = True
@@ -79,6 +79,7 @@ def main(page: ft.Page):
         _update_screen(nav_bar.selected_index)
 
     def _on_lang_change(lang):
+        page.rtl = lang == "ar"
         _update_screen(nav_bar.selected_index)
 
     def _nav_change(e):

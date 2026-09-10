@@ -2,7 +2,7 @@ import flet as ft
 from app.database import (get_credit_notes, get_credit_note, get_credit_note_items,
                           add_credit_note, add_credit_payment, get_credit_payments,
                           get_credit_summary, get_customers, add_customer,
-                          get_products, add_stock_movement)
+                          get_products)
 from app.translations import get_translation as t
 from app.theme import AppTheme
 from app.currency import get_currency_symbol
@@ -173,6 +173,7 @@ class CreditScreen(ft.Container):
 
         items_list = ft.Column(scroll=ft.ScrollMode.AUTO)
         added_items = []
+        error_text = ft.Text("", color="red", size=13, text_align=ft.TextAlign.CENTER)
 
         def add_item(e):
             try:
@@ -221,16 +222,13 @@ class CreditScreen(ft.Container):
                 if not cid:
                     return
 
-                total_amount = sum(item[4] for item in added_items)
-                cn_id = add_credit_note(user_id, cid, added_items)
-
-                for item in added_items:
-                    add_stock_movement(item[0], user_id, "out", item[2], note=f"Credit sale #{cn_id}")
+                add_credit_note(user_id, cid, added_items)
 
                 self._page.pop_dialog()
                 self._refresh()
-            except ValueError:
-                pass
+            except ValueError as ex:
+                error_text.value = str(ex) if str(ex) else t(lang, "error")
+                error_text.update()
 
         content_items = ft.Column(
             [
@@ -242,6 +240,7 @@ class CreditScreen(ft.Container):
                 ft.Row([product_dd], vertical_alignment=ft.CrossAxisAlignment.START),
                 ft.Row([qty_inp, unit_price_inp, ft.IconButton(ft.Icons.ADD_CIRCLE, on_click=add_item)]),
                 items_list,
+                error_text,
             ],
             scroll=ft.ScrollMode.AUTO,
         )
@@ -389,22 +388,22 @@ class CreditScreen(ft.Container):
                                 keyboard_type=ft.KeyboardType.NUMBER, text_align=ft.TextAlign.RIGHT, expand=True)
         note_inp = ft.TextField(label=t(lang, "note"), text_align=ft.TextAlign.RIGHT, expand=True)
         remaining_text = ft.Text(f"{t(lang, 'remaining')}: {remaining:.2f}", size=14, color=AppTheme.ACCENT)
+        error_text = ft.Text("", color="red", size=13, text_align=ft.TextAlign.CENTER)
 
         def do_pay(e):
             try:
                 amt = float(amt_inp.value or 0)
-                if amt <= 0:
-                    return
                 add_credit_payment(cn_id, amt, note_inp.value.strip())
                 self._page.pop_dialog()
                 self._page.pop_dialog()
                 self._refresh()
-            except ValueError:
-                pass
+            except ValueError as ex:
+                error_text.value = str(ex) if str(ex) else t(lang, "error")
+                error_text.update()
 
         dlg = ft.AlertDialog(
             title=ft.Text(t(lang, "add_payment")),
-            content=ft.Column([remaining_text, amt_inp, note_inp]),
+            content=ft.Column([remaining_text, amt_inp, note_inp, error_text]),
             actions=[
                 ft.TextButton(t(lang, "cancel"), on_click=lambda e: self._page.pop_dialog()),
                 ft.FilledButton(t(lang, "save"), on_click=do_pay),

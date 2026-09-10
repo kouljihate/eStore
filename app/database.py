@@ -1,7 +1,6 @@
 import sqlite3
-import hashlib
 import os
-from datetime import datetime
+import bcrypt
 
 DB_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
 DB_PATH = os.path.join(DB_DIR, "app.db")
@@ -15,31 +14,15 @@ def _get_connection():
     return conn
 
 
-def _migrate_schema():
-    conn = _get_connection()
-    for col in ["supplier_name", "supplier_whatsapp", "supplier_email"]:
-        try:
-            conn.execute(f"ALTER TABLE products ADD COLUMN {col} TEXT DEFAULT ''")
-        except sqlite3.OperationalError:
-            pass
-    try:
-        conn.execute("ALTER TABLE products ADD COLUMN buying_price REAL DEFAULT 0")
-    except sqlite3.OperationalError:
-        pass
-    try:
-        conn.execute("ALTER TABLE products ADD COLUMN barcode TEXT DEFAULT ''")
-    except sqlite3.OperationalError:
-        pass
-    conn.commit()
-    conn.close()
-
-
 def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def check_password(password: str, hashed: str) -> bool:
+    return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
 
 
 def init_db():
-    _migrate_schema()
     conn = _get_connection()
     cursor = conn.cursor()
     cursor.executescript("""
@@ -57,10 +40,15 @@ def init_db():
             name TEXT NOT NULL,
             quantity REAL DEFAULT 0,
             price REAL DEFAULT 0,
+            buying_price REAL DEFAULT 0,
             category TEXT DEFAULT '',
             packaging TEXT DEFAULT '',
             description TEXT DEFAULT '',
             low_stock_qty REAL DEFAULT 5,
+            supplier_name TEXT DEFAULT '',
+            supplier_whatsapp TEXT DEFAULT '',
+            supplier_email TEXT DEFAULT '',
+            barcode TEXT DEFAULT '',
             created_at TEXT DEFAULT (datetime('now')),
             updated_at TEXT DEFAULT (datetime('now')),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -161,11 +149,13 @@ def create_user(name: str, email: str, password: str) -> int:
 def authenticate_user(email: str, password: str):
     conn = _get_connection()
     row = conn.execute(
-        "SELECT * FROM users WHERE email = ? AND password_hash = ?",
-        (email, hash_password(password)),
+        "SELECT * FROM users WHERE email = ?",
+        (email,),
     ).fetchone()
     conn.close()
-    return dict(row) if row else None
+    if row and check_password(password, row["password_hash"]):
+        return dict(row)
+    return None
 
 
 def get_user(user_id: int):
@@ -179,6 +169,10 @@ def add_product(user_id: int, name: str, quantity: float, price: float, buying_p
                 category: str, packaging: str, description: str, low_stock_qty: float,
                 supplier_name: str = "", supplier_whatsapp: str = "", supplier_email: str = "",
                 barcode: str = "") -> int:
+    quantity = max(0, quantity)
+    price = max(0, price)
+    buying_price = max(0, buying_price)
+    low_stock_qty = max(0, low_stock_qty)
     conn = _get_connection()
     cursor = conn.execute(
         """INSERT INTO products (user_id, name, quantity, price, buying_price, category, packaging,
@@ -196,6 +190,10 @@ def update_product(product_id: int, name: str, quantity: float, price: float, bu
                    category: str, packaging: str, description: str, low_stock_qty: float,
                    supplier_name: str = "", supplier_whatsapp: str = "", supplier_email: str = "",
                    barcode: str = ""):
+    quantity = max(0, quantity)
+    price = max(0, price)
+    buying_price = max(0, buying_price)
+    low_stock_qty = max(0, low_stock_qty)
     conn = _get_connection()
     conn.execute(
         """UPDATE products SET name=?, quantity=?, price=?, buying_price=?, category=?, packaging=?,
@@ -241,17 +239,25 @@ def get_product_by_barcode(barcode: str, user_id: int):
 
 
 def add_stock_movement(product_id: int, user_id: int, mtype: str, quantity: float, note: str):
+    if quantity <= 0:
+        raise ValueError("Quantity must be positive")
     conn = _get_connection()
-    product = conn.execute("SELECT * FROM products WHERE id = ?", (product_id,)).fetchone()
-    new_qty = product["quantity"] + quantity if mtype == "in" else product["quantity"] - quantity
-    conn.execute("UPDATE products SET quantity=?, updated_at=datetime('now') WHERE id=?",
-                 (new_qty, product_id))
-    conn.execute(
-        "INSERT INTO stock_movements (product_id, user_id, type, quantity, note) VALUES (?,?,?,?,?)",
-        (product_id, user_id, mtype, quantity, note),
-    )
-    conn.commit()
-    conn.close()
+    try:
+        product = conn.execute("SELECT * FROM products WHERE id = ?", (product_id,)).fetchone()
+        if not product:
+            raise ValueError("Product not found")
+        if mtype == "out" and quantity > product["quantity"]:
+            raise ValueError("Insufficient stock")
+        new_qty = product["quantity"] + quantity if mtype == "in" else product["quantity"] - quantity
+        conn.execute("UPDATE products SET quantity=?, updated_at=datetime('now') WHERE id=?",
+                     (new_qty, product_id))
+        conn.execute(
+            "INSERT INTO stock_movements (product_id, user_id, type, quantity, note) VALUES (?,?,?,?,?)",
+            (product_id, user_id, mtype, quantity, note),
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def get_stock_movements(user_id: int, limit: int = 50):
@@ -266,7 +272,21 @@ def get_stock_movements(user_id: int, limit: int = 50):
     return [dict(r) for r in rows]
 
 
+def get_stock_movements_by_product(user_id: int, product_id: int, limit: int = 50):
+    conn = _get_connection()
+    rows = conn.execute(
+        """SELECT sm.*, p.name as product_name FROM stock_movements sm
+           JOIN products p ON sm.product_id = p.id
+           WHERE sm.user_id = ? AND sm.product_id = ? ORDER BY sm.date DESC LIMIT ?""",
+        (user_id, product_id, limit),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
 def add_transaction(user_id: int, ttype: str, amount: float, category: str, description: str):
+    if amount <= 0:
+        raise ValueError("Amount must be positive")
     conn = _get_connection()
     conn.execute(
         "INSERT INTO transactions (user_id, type, amount, category, description) VALUES (?,?,?,?,?)",
@@ -287,6 +307,8 @@ def get_transactions(user_id: int, limit: int = 50):
 
 
 def add_customer(user_id: int, name: str, phone: str = "") -> int:
+    if not name.strip():
+        raise ValueError("Customer name is required")
     conn = _get_connection()
     cursor = conn.execute(
         "INSERT INTO customers (user_id, name, phone) VALUES (?, ?, ?)",
@@ -314,22 +336,42 @@ def get_customer(customer_id: int):
 
 
 def add_credit_note(user_id: int, customer_id: int, items: list):
+    if not items:
+        raise ValueError("Credit note must have at least one item")
     conn = _get_connection()
-    total_amount = sum(item[4] for item in items)
-    cursor = conn.execute(
-        "INSERT INTO credit_notes (user_id, customer_id, total_amount) VALUES (?, ?, ?)",
-        (user_id, customer_id, total_amount),
-    )
-    cn_id = cursor.lastrowid
-    for item in items:
-        conn.execute(
-            """INSERT INTO credit_note_items (credit_note_id, product_id, product_name, quantity, unit_price, total_price)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (cn_id, item[0], item[1], item[2], item[3], item[4]),
+    try:
+        total_amount = sum(item[4] for item in items)
+        cursor = conn.execute(
+            "INSERT INTO credit_notes (user_id, customer_id, total_amount) VALUES (?, ?, ?)",
+            (user_id, customer_id, total_amount),
         )
-    conn.commit()
-    conn.close()
-    return cn_id
+        cn_id = cursor.lastrowid
+        for item in items:
+            product_id = item[0]
+            qty = item[2]
+            product = conn.execute("SELECT * FROM products WHERE id = ?", (product_id,)).fetchone()
+            if product:
+                if qty > product["quantity"]:
+                    raise ValueError("Insufficient stock for credit sale")
+                new_qty = product["quantity"] - qty
+                conn.execute("UPDATE products SET quantity=?, updated_at=datetime('now') WHERE id=?",
+                             (new_qty, product_id))
+                conn.execute(
+                    "INSERT INTO stock_movements (product_id, user_id, type, quantity, note) VALUES (?,?, 'out', ?,?)",
+                    (product_id, user_id, qty, f"Credit sale #{cn_id}"),
+                )
+            conn.execute(
+                """INSERT INTO credit_note_items (credit_note_id, product_id, product_name, quantity, unit_price, total_price)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (cn_id, item[0], item[1], item[2], item[3], item[4]),
+            )
+        conn.commit()
+        return cn_id
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def get_credit_notes(user_id: int, status: str = None):
@@ -371,24 +413,35 @@ def get_credit_note_items(cn_id: int):
 
 
 def add_credit_payment(credit_note_id: int, amount: float, note: str = ""):
+    if amount <= 0:
+        raise ValueError("Payment amount must be positive")
     conn = _get_connection()
-    conn.execute(
-        "INSERT INTO credit_payments (credit_note_id, amount, note) VALUES (?, ?, ?)",
-        (credit_note_id, amount, note),
-    )
-    cn = conn.execute("SELECT * FROM credit_notes WHERE id = ?", (credit_note_id,)).fetchone()
-    new_paid = cn["paid_amount"] + amount
-    new_status = "closed" if abs(new_paid - cn["total_amount"]) < 0.001 else "open"
-    conn.execute(
-        "UPDATE credit_notes SET paid_amount = ?, status = ?, updated_at = datetime('now') WHERE id = ?",
-        (new_paid, new_status, credit_note_id),
-    )
-    conn.execute(
-        "INSERT INTO transactions (user_id, type, amount, category, description) VALUES (?, 'income', ?, 'Credit', ?)",
-        (cn["user_id"], amount, f"Credit payment for note #{credit_note_id}"),
-    )
-    conn.commit()
-    conn.close()
+    try:
+        cn = conn.execute("SELECT * FROM credit_notes WHERE id = ?", (credit_note_id,)).fetchone()
+        if not cn:
+            raise ValueError("Credit note not found")
+        new_paid = cn["paid_amount"] + amount
+        if new_paid > cn["total_amount"] + 0.001:
+            raise ValueError("Payment exceeds remaining balance")
+        new_status = "closed" if abs(new_paid - cn["total_amount"]) < 0.001 else "open"
+        conn.execute(
+            "INSERT INTO credit_payments (credit_note_id, amount, note) VALUES (?, ?, ?)",
+            (credit_note_id, amount, note),
+        )
+        conn.execute(
+            "UPDATE credit_notes SET paid_amount = ?, status = ?, updated_at = datetime('now') WHERE id = ?",
+            (new_paid, new_status, credit_note_id),
+        )
+        conn.execute(
+            "INSERT INTO transactions (user_id, type, amount, category, description) VALUES (?, 'income', ?, 'Credit', ?)",
+            (cn["user_id"], amount, f"Credit payment for note #{credit_note_id}"),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def get_credit_payments(credit_note_id: int):

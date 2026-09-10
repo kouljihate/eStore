@@ -64,10 +64,13 @@ def print_stickers(products: list):
 
 
 def _open_file(path: str):
+    import sys
     try:
-        os.startfile(path)
-    except Exception:
-        try:
+        if sys.platform == "win32":
+            os.startfile(path)
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", path])
+        else:
             subprocess.Popen(["xdg-open", path])
-        except Exception:
-            pass
+    except Exception:
+        pass

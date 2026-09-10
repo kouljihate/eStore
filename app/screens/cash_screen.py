@@ -120,22 +120,22 @@ class CashScreen(ft.Container):
                                 keyboard_type=ft.KeyboardType.NUMBER, text_align=ft.TextAlign.RIGHT, expand=True)
         cat_inp = ft.TextField(label=t(lang, "category"), text_align=ft.TextAlign.RIGHT, expand=True)
         desc_inp = ft.TextField(label=t(lang, "description"), multiline=True, text_align=ft.TextAlign.RIGHT, expand=True)
+        error_text = ft.Text("", color="red", size=13, text_align=ft.TextAlign.CENTER)
 
         def save(e):
             try:
                 amt = float(amt_inp.value or 0)
-                if amt <= 0:
-                    return
                 add_transaction(self._page.session.store.get("user_id"), ttype_dd.value, amt,
                                 cat_inp.value.strip(), desc_inp.value.strip())
                 self._page.pop_dialog()
                 self._refresh()
-            except ValueError:
-                pass
+            except ValueError as ex:
+                error_text.value = str(ex) if str(ex) else t(lang, "error")
+                error_text.update()
 
         dlg = ft.AlertDialog(
             title=ft.Text(t(lang, "add_transaction")),
-            content=ft.Column([ttype_dd, amt_inp, cat_inp, desc_inp], scroll=ft.ScrollMode.AUTO),
+            content=ft.Column([ttype_dd, amt_inp, cat_inp, desc_inp, error_text], scroll=ft.ScrollMode.AUTO),
             actions=[
                 ft.TextButton(t(lang, "cancel"), on_click=lambda e: self._page.pop_dialog()),
                 ft.FilledButton(t(lang, "save"), on_click=save),

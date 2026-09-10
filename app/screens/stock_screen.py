@@ -1,7 +1,7 @@
 import flet as ft
 import base64
 from app.database import (get_products, add_product, update_product, delete_product,
-                          add_stock_movement, get_stock_movements, get_product, add_transaction,
+                          add_stock_movement, get_stock_movements_by_product, get_product, add_transaction,
                           get_customers, add_customer, add_credit_note)
 from app.translations import get_translation as t
 from app.theme import AppTheme
@@ -215,6 +215,7 @@ class StockScreen(ft.Container):
         barcode_inp = ft.TextField(label=t(lang, "barcode"), value=product.get("barcode", "") if is_edit else "",
                                     text_align=ft.TextAlign.RIGHT, expand=True)
         barcode_img = ft.Image(src="", visible=False, height=50, fit=ft.BoxFit.CONTAIN)
+        error_text = ft.Text("", color="red", size=13, text_align=ft.TextAlign.CENTER)
 
         def generate_code_action(e):
             existing = {p.get("barcode", "") for p in self.products if p.get("barcode")}
@@ -253,8 +254,13 @@ class StockScreen(ft.Container):
 
         def save_action(e):
             try:
+                name_val = name_inp.value.strip()
+                if not name_val:
+                    error_text.value = t(lang, "fill_fields")
+                    error_text.update()
+                    return
                 data = dict(
-                    name=name_inp.value.strip(),
+                    name=name_val,
                     quantity=float(qty_inp.value or 0),
                     price=float(price_inp.value or 0),
                     buying_price=float(buying_price_inp.value or 0),
@@ -273,15 +279,16 @@ class StockScreen(ft.Container):
                     add_product(self._page.session.store.get("user_id"), **data)
                 self._page.pop_dialog()
                 self._refresh()
-            except ValueError:
-                pass
+            except ValueError as ex:
+                error_text.value = str(ex) if str(ex) else t(lang, "error")
+                error_text.update()
 
         dlg = ft.AlertDialog(
             title=ft.Text(t(lang, "edit_product" if is_edit else "add_product")),
             content=ft.Column([name_inp, qty_inp, price_inp, buying_price_inp, cat_inp, pkg_inp, desc_inp, low_inp,
                                supplier_inp, supplier_wp_inp, supplier_em_inp,
                                ft.Row([barcode_inp, ft.IconButton(ft.Icons.QR_CODE_SCANNER, on_click=generate_code_action)]),
-                               barcode_img],
+                               barcode_img, error_text],
                               scroll=ft.ScrollMode.AUTO),
             actions=[
                 ft.TextButton(t(lang, "cancel"), on_click=lambda e: self._page.pop_dialog()),
@@ -300,6 +307,7 @@ class StockScreen(ft.Container):
                                 keyboard_type=ft.KeyboardType.NUMBER, text_align=ft.TextAlign.RIGHT, expand=True)
         total_text = ft.Text(f"{t(lang, 'amount')}: {price_per_unit:.2f} {get_currency_symbol(self._page)}",
                              size=16, weight=ft.FontWeight.BOLD)
+        error_text = ft.Text("", color="red", size=13, text_align=ft.TextAlign.CENTER)
 
         def on_qty_change(e):
             try:
@@ -314,7 +322,7 @@ class StockScreen(ft.Container):
         def do_sell(e):
             try:
                 qty = float(qty_inp.value or 0)
-                if qty <= 0 or qty > p["quantity"]:
+                if qty <= 0:
                     return
                 total = qty * price_per_unit
                 add_stock_movement(product_id, self._page.session.store.get("user_id"), "out", qty, note="Sale")
@@ -322,12 +330,13 @@ class StockScreen(ft.Container):
                                 "Sale", f"Sold {qty} x {p['name']}")
                 self._page.pop_dialog()
                 self._refresh()
-            except ValueError:
-                pass
+            except ValueError as ex:
+                error_text.value = str(ex) if str(ex) else t(lang, "error")
+                error_text.update()
 
         dlg = ft.AlertDialog(
             title=ft.Text(f"{t(lang, 'sell')} - {p['name']}"),
-            content=ft.Column([qty_inp, total_text], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+            content=ft.Column([qty_inp, total_text, error_text], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
             actions=[
                 ft.TextButton(t(lang, "cancel"), on_click=lambda e: self._page.pop_dialog()),
                 ft.FilledButton(t(lang, "save"), on_click=do_sell),
@@ -348,6 +357,7 @@ class StockScreen(ft.Container):
                                 keyboard_type=ft.KeyboardType.NUMBER, text_align=ft.TextAlign.RIGHT, expand=True)
         total_text = ft.Text(f"{t(lang, 'amount')}: {price_per_unit:.2f} {get_currency_symbol(self._page)}",
                              size=16, weight=ft.FontWeight.BOLD)
+        error_text = ft.Text("", color="red", size=13, text_align=ft.TextAlign.CENTER)
 
         customer_dd = ft.Dropdown(
             label=t(lang, "select_customer"),
@@ -386,7 +396,7 @@ class StockScreen(ft.Container):
         def do_credit_sell(e):
             try:
                 qty = float(qty_inp.value or 0)
-                if qty <= 0 or qty > p["quantity"]:
+                if qty <= 0:
                     return
                 total = qty * price_per_unit
                 cid = None
@@ -398,11 +408,11 @@ class StockScreen(ft.Container):
                     return
                 items = [(product_id, p["name"], qty, price_per_unit, total)]
                 add_credit_note(user_id, cid, items)
-                add_stock_movement(product_id, user_id, "out", qty, note=f"Credit sale")
                 self._page.pop_dialog()
                 self._refresh()
-            except ValueError:
-                pass
+            except ValueError as ex:
+                error_text.value = str(ex) if str(ex) else t(lang, "error")
+                error_text.update()
 
         dlg = ft.AlertDialog(
             title=ft.Text(f"{t(lang, 'sell_on_credit')} - {p['name']}"),
@@ -411,7 +421,7 @@ class StockScreen(ft.Container):
                     ft.Row([customer_dd], vertical_alignment=ft.CrossAxisAlignment.START),
                     new_name, new_phone, toggle_btn,
                     ft.Divider(),
-                    qty_inp, total_text,
+                    qty_inp, total_text, error_text,
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 scroll=ft.ScrollMode.AUTO,
@@ -428,26 +438,21 @@ class StockScreen(ft.Container):
         qty_inp = ft.TextField(label=t(lang, "quantity"), value="0",
                                keyboard_type=ft.KeyboardType.NUMBER, text_align=ft.TextAlign.RIGHT, expand=True)
         note_inp = ft.TextField(label=t(lang, "note"), text_align=ft.TextAlign.RIGHT, expand=True)
+        error_text = ft.Text("", color="red", size=13, text_align=ft.TextAlign.CENTER)
 
         def save_movement(e):
             try:
                 qty = float(qty_inp.value or 0)
-                if qty <= 0:
-                    return
-                if mtype == "out":
-                    p = get_product(product_id)
-                    if p and qty > p["quantity"]:
-                        self._page.show_dialog(ft.SnackBar(ft.Text(t(lang, "quantity_more_than_stock"))))
-                        return
                 add_stock_movement(product_id, self._page.session.store.get("user_id"), mtype, qty, note_inp.value.strip())
                 self._page.pop_dialog()
                 self._refresh()
-            except ValueError:
-                pass
+            except ValueError as ex:
+                error_text.value = str(ex) if str(ex) else t(lang, "error")
+                error_text.update()
 
         dlg = ft.AlertDialog(
             title=ft.Text(t(lang, "stock_in" if mtype == "in" else "stock_out")),
-            content=ft.Column([qty_inp, note_inp]),
+            content=ft.Column([qty_inp, note_inp, error_text]),
             actions=[
                 ft.TextButton(t(lang, "cancel"), on_click=lambda e: self._page.pop_dialog()),
                 ft.FilledButton(t(lang, "save"), on_click=save_movement),
@@ -458,8 +463,7 @@ class StockScreen(ft.Container):
     def _show_movement_history(self, product_id):
         lang = self._page.session.store.get("lang") or "ar"
         user_id = self._page.session.store.get("user_id")
-        all_movements = get_stock_movements(user_id, 200)
-        p_movements = [m for m in all_movements if m["product_id"] == product_id]
+        p_movements = get_stock_movements_by_product(user_id, product_id, 50) if user_id else []
 
         if not p_movements:
             content = ft.Text(t(lang, "no_movements"), opacity=0.5, italic=True)
